@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>I Rise - 3D Parallax Edition</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            /* Added for 3D effect */
+            perspective: 1000px;
+        }
+
+        /* --- INTRO SCREEN (Unchanged) --- */
+        #intro-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1;
+            transition: opacity 1s ease-out;
+        }
+        #intro-screen.hidden { opacity: 0; pointer-events: none; }
+        #intro-line {
+            font-family: 'Cinzel', serif;
+            color: rgba(0, 255, 255, 0.8);
+            font-size: 3.5vw;
+            text-align: center;
+            margin-bottom: 50px;
+            text-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+            opacity: 0;
+            animation: fadeInText 2s 0.5s forwards;
+        }
+        #enter-button {
+            padding: 15px 40px;
+            font-family: 'Cinzel', serif;
+            font-size: 1.5vw;
+            color: #fff;
+            background: rgba(0, 255, 255, 0.2);
+            border: 2px solid #00ffff;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s, color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+            opacity: 0;
+            animation: pulseButton 1.5s infinite alternate ease-in-out, fadeInText 2s 2.5s forwards;
+        }
+        #enter-button:hover {
+            background: rgba(0, 255, 255, 0.4);
+            box-shadow: 0 0 25px rgba(0, 255, 255, 0.8);
+        }
+
+        /* --- MAIN SCENE (Simplified Structure) --- */
+        
+        #arc-loader {
+            position: fixed; top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100px; height: 100px;
+            z-index: 1000; opacity: 0; pointer-events: none;
+        }
+        #arc-loader.active {
+            opacity: 1; animation: fadeOutLoader 0.5s 1.5s forwards;
+        }
+        #arc-loader .arc-ring {
+            position: absolute; width: 100%; height: 100%;
+            border: 3px solid transparent; border-top-color: #00ffff; border-bottom-color: #00ffff;
+            border-radius: 50%; animation: pulseArc 1.5s infinite ease-in-out;
+        }
+        #arc-loader .arc-ring:nth-child(2) {
+            width: 80%; height: 80%; top: 10%; left: 10%;
+            border-top-color: #fff; border-bottom-color: #fff; animation-delay: -0.5s;
+        }
+        
+        #shockwave {
+            position: fixed; top: 50%; left: 50%; width: 0; height: 0;
+            border: 3px solid rgba(0, 255, 255, 0.8); border-radius: 50%;
+            transform: translate(-50%, -50%); opacity: 0; z-index: 50;
+            pointer-events: none;
+        }
+        #shockwave.active {
+            animation: expandShockwave 1s 1.2s ease-out forwards;
+        }
+        
+        /* This wrapper will hold the 3D scene */
+        #scene-wrapper {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            /* Added for 3D */
+            transform-style: preserve-3d;
+            /* Added for smooth tilt */
+            transition: transform 0.1s linear; 
+        }
+
+        /* The main scene layer (single layer now) */
+        #hero-scene {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background-image: url('background-scene.jpg');
+            background-size: cover; background-position: center;
+            opacity: 0; z-index: 1;
+            filter: url(#energy-distortion);
+            
+            /* Glitch animation is REMOVED */
+            animation: materialize-fast 2s 1.3s forwards cubic-bezier(0.1, 0.7, 0.3, 1),
+                       subtleZoom 25s 3.3s infinite alternate ease-in-out;
+        }
+
+        .svg-filters { position: absolute; width: 0; height: 0; }
+
+        /* These elements are INSIDE the wrapper to move with it */
+        #energy-glow {
+            position: absolute; top: 40%; left: 50%;
+            transform: translate3d(-50%, -50%, 50px); /* Moves forward in 3D */
+            width: 30vw; height: 30vw;
+            background: radial-gradient(circle, rgba(0, 255, 255, 0.4) 0%, rgba(0, 255, 255, 0) 70%);
+            border-radius: 50%; z-index: 3; opacity: 0;
+            animation: pulseGlow 3s 3.5s infinite alternate ease-in-out;
+        }
+
+        #particles-js {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%; z-index: 4;
+            transform: translateZ(30px); /* Moves particles forward */
+            pointer-events: none;
+        }
+
+        /* Poem Text (Fixed and sits OUTSIDE wrapper to "float") */
+        #poem-content {
+            position: absolute; bottom: 10%; left: 50%;
+            transform: translateX(-50%); /* Initial state */
+            width: 80%; max-width: 600px;
+            text-align: center; color: rgba(255, 255, 255, 0.9);
+            font-family: 'Cinzel', serif; font-size: 1.5vw; font-weight: 400;
+            text-shadow: 0 0 15px rgba(0, 255, 255, 0.6), 0 0 5px rgba(0, 0, 0, 1);
+            z-index: 6; opacity: 0;
+            pointer-events: none;
+            transition: transform 0.1s linear;
+            animation: fadeInContainer 1.5s 3.5s forwards;
+        }
+        
+        #poem-content p {
+            margin: 0.5em 0; line-height: 1.6;
+            opacity: 0; transform: translateY(20px);
+            animation: lineFadeIn 1s forwards ease-out;
+        }
+        #poem-content p:nth-child(1) { animation-delay: 4.0s; }
+        #poem-content p:nth-child(2) { animation-delay: 4.5s; }
+        #poem-content p:nth-child(3) { animation-delay: 5.0s; }
+
+        /* --- ALL KEYFRAMES (Glitch Removed) --- */
+        
+        @keyframes fadeInText { to { opacity: 1; } }
+        @keyframes pulseButton {
+            0% { transform: scale(1); box-shadow: 0 0 10px rgba(0, 255, 255, 0.5); }
+            100% { transform: scale(1.05); box-shadow: 0 0 20px rgba(0, 255, 255, 0.8); }
+        }
+        @keyframes pulseArc {
+            0% { transform: scale(0.8); opacity: 0.5; }
+            50% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.5; }
+        }
+        @keyframes fadeOutLoader {
+            to { opacity: 0; transform: translate(-50%, -50%) scale(2); visibility: hidden; }
+        }
+        @keyframes expandShockwave {
+            0% { width: 0; height: 0; opacity: 1; }
+            100% { width: 200vmax; height: 200vmax; opacity: 0; }
+        }
+
+        @keyframes materialize-fast {
+            0% {
+                opacity: 0;
+                --distortion-scale: 400;
+                filter: blur(20px) grayscale(100%);
+            }
+            30% {
+                opacity: 1;
+                --distortion-scale: 300;
+                filter: blur(10px) grayscale(50%) brightness(2.5);
+            }
+            70% {
+                opacity: 1;
+                --distortion-scale: 20;
+                filter: blur(0) grayscale(0) brightness(1);
+            }
+            /* Removed the CSS glitch section from here */
+            100% {
+                opacity: 1;
+                --distortion-scale: 2;
+                filter: blur(0) grayscale(0) brightness(1);
+            }
+        }
+        
+        /* GLITCH KEYFRAMES ARE GONE */
+        
+        @keyframes subtleZoom {
+            from { transform: scale(1); }
+            to { transform: scale(1.08); }
+        }
+        
+        @keyframes pulseGlow {
+            from { opacity: 0.3; transform: translate3d(-50%, -50%, 50px) scale(0.8); }
+            to { opacity: 1; transform: translate3d(-50%, -50%, 50px) scale(1.1); }
+        }
+        
+        @keyframes fadeInContainer { to { opacity: 1; } }
+        @keyframes lineFadeIn { to { opacity: 1; transform: translateY(0); } }
+        
+        /* Responsive font size */
+        @media (max-width: 768px) {
+            #intro-line { font-size: 5vw; }
+            #enter-button { font-size: 2.5vw; padding: 10px 30px; }
+            #poem-content { font-size: 2vw; }
+        }
+        @media (max-width: 480px) {
+            #intro-line { font-size: 7vw; }
+            #enter-button { font-size: 4vw; padding: 8px 25px; }
+            #poem-content { font-size: 3.5vw; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="intro-screen">
+        <div id="intro-line">“Things are poisonous,
+but I’m the king of it —
+I’ve learned to sip the venom
+and turn it into power.”</div>
+        <button id="enter-button">Enter the Rift</button>
+    </div>
+
+    <div id="arc-loader">
+        <div class="arc-ring"></div>
+        <div class="arc-ring"></div>
+    </div>
+    
+    <div id="shockwave"></div>
+    
+    <svg class="svg-filters">
+        <defs>
+            <filter id="energy-distortion">
+                <feTurbulence type="fractalNoise" 
+                    baseFrequency="0.01 0.02" 
+                    numOctaves="3" 
+                    seed="0" 
+                    result="turbulence"
+                    id="feTurbulence" />
+                
+                <feDisplacementMap in="SourceGraphic" in2="turbulence" 
+                    scale="var(--distortion-scale, 300)"
+                    xChannelSelector="R" yChannelSelector="G" 
+                    result="displacement"
+                    id="feDisplacement" />
+            </filter>
+        </defs>
+    </svg>
+
+    <div id="scene-wrapper">
+        <div id="hero-scene"></div>
+        <div id="energy-glow"></div>
+        <div id="particles-js"></div>
+    </div>
+    
+    <div id="poem-content">
+        <p>Poison kills, but I bloom in it.</p>
+        <p>Betrayal burns, but I rise from it.</p>
+        <p>now I wear the sting like a crown sacred.</p>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles@3.4.0/tsparticles.bundle.min.js"></script>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async (event) => {
+            const introScreen = document.getElementById('intro-screen');
+            const enterButton = document.getElementById('enter-button');
+            const arcLoader = document.getElementById('arc-loader');
+            const shockwave = document.getElementById('shockwave');
+            const feTurbulence = document.getElementById('feTurbulence');
+            
+            // --- NEW 3D TILT ELEMENTS ---
+            const sceneWrapper = document.getElementById('scene-wrapper');
+            const poemContent = document.getElementById('poem-content');
+            // --- END NEW 3D TILT ---
+
+            let turbulenceSeed = 0;
+
+            const startCinematicSequence = async () => {
+                introScreen.classList.add('hidden');
+                arcLoader.classList.add('active');
+                shockwave.classList.add('active');
+
+                // Start the continuous "live wallpaper" distortion
+                const animateLiveTurbulence = () => {
+                    turbulenceSeed += 0.005;
+                    feTurbulence.setAttribute('seed', turbulenceSeed);
+                    requestAnimationFrame(animateLiveTurbulence);
+                };
+                requestAnimationFrame(animateLiveTurbulence);
+
+                // --- NEW: START 3D TILT INTERACTION ---
+                // We start this *after* the reveal animation
+                setTimeout(() => {
+                    document.body.addEventListener('mousemove', (e) => {
+                        // Calculate mouse position from center
+                        // The '15' is the 'intensity' of the tilt. Lower = more.
+                        let xAxis = (window.innerWidth / 2 - e.pageX) / 25; 
+                        let yAxis = (window.innerHeight / 2 - e.pageY) / 25;
+                        
+                        // Apply tilt to the scene
+                        sceneWrapper.style.transform = `rotateY(${xAxis}deg) rotateX(${yAxis}deg)`;
+                        
+                        // Apply a counter-tilt to the "floating" text
+                        poemContent.style.transform = `translateX(-50%) rotateY(${-xAxis}deg) rotateX(${-yAxis}deg) translateZ(100px)`;
+                    });
+                    
+                    // Reset on mouse leave
+                    document.body.addEventListener('mouseleave', () => {
+                         sceneWrapper.style.transition = 'transform 0.5s ease-out';
+                         poemContent.style.transition = 'transform 0.5s ease-out';
+                         sceneWrapper.style.transform = `rotateY(0deg) rotateX(0deg)`;
+                         poemContent.style.transform = `translateX(-50%) rotateY(0deg) rotateX(0deg) translateZ(0px)`;
+                    });
+                    
+                    document.body.addEventListener('mouseenter', () => {
+                         sceneWrapper.style.transition = 'transform 0.1s linear';
+                         poemContent.style.transition = 'transform 0.1s linear';
+                    });
+                    
+                }, 3500); // 3.5s, after reveal animation
+                // --- END NEW 3D TILT ---
+
+
+                // --- PARTICLE ENGINE ---
+                const particlesInstance = await tsParticles.load("particles-js", {
+                    "particles": {
+                        "number": { "value": 100, "density": { "enable": true, "value_area": 800 } },
+                        "color": { "value": "#ffffff" },
+                        "shape": { "type": "circle" },
+                        "opacity": { "value": 0.5, "random": true, "anim": { "enable": true, "speed": 1, "opacity_min": 0.1, "sync": false } },
+                        "size": { "value": 2, "random": true },
+                        "move": { "enable": true, "speed": 0.5, "direction": "none", "random": true, "straight": false, "out_mode": "out" }
+                    },
+                    "interactivity": {
+                        "detect_on": "canvas",
+                        "events": { "onhover": { "enable": true, "mode": "repulse" }, "onclick": { "enable": true, "mode": "push" } },
+                        "modes": { "repulse": { "distance": 100, "duration": 0.4 }, "push": { "particles_nb": 4 } }
+                    },
+                    "retina_detect": true,
+                    "emitters": []
+                });
+
+                // Dynamically add MASSIVE BURST emitters
+                setTimeout(() => {
+                    // Fire Emitter (burst)
+                    particlesInstance.addEmitter({
+                        "position": { "x": 50, "y": 100 },
+                        "rate": { "quantity": 40, "delay": 0.02 },
+                        "life": { "duration": 2.5, "count": 1 },
+                        "particles": {
+                            "color": { "value": ["#ff5e00", "#ffc000", "#ff0000"] },
+                            "move": { "direction": "top", "speed": { "min": 5, "max": 15 }, "gravity": { "enable": true, "acceleration": -1 }, "trail": { "enable": true, "fillColor": "#000", "length": 8 } },
+                            "opacity": { "value": { "min": 0.7, "max": 1 } },
+                            "size": { "value": { "min": 2, "max": 5 } }
+                        }
+                    });
+                    // Energy Emitter (burst)
+                    particlesInstance.addEmitter({
+                        "position": { "x": 50, "y": 35 },
+                        "rate": { "quantity": 100, "delay": 0.01 },
+                        "life": { "duration": 1.5, "count": 1 },
+                        "particles": {
+                            "color": { "value": "#00ffff" },
+                            "move": { "direction": "none", "speed": { "min": 10, "max": 25 }, "outMode": "destroy", "random": true },
+                            "opacity": { "value": { "min": 0.7, "max": 1 } },
+                            "size": { "value": { "min": 3, "max": 7 } }
+                        }
+                    });
+                    // Add continuous, calmer emitters for the loop
+                    particlesInstance.addEmitter({
+                        "position": { "x": 50, "y": 100 },
+                        "rate": { "quantity": 5, "delay": 0.2 },
+                        "life": { "duration": 5, "count": 0 },
+                        "particles": { "color": { "value": ["#ff5e00", "#ffc000"] }, "move": { "direction": "top", "speed": { "min": 1, "max": 3 }, "gravity": { "enable": true, "acceleration": -0.5 } }, "opacity": { "value": { "min": 0.1, "max": 0.6 } }, "size": { "value": { "min": 1, "max": 2 } } }
+                    });
+                    particlesInstance.addEmitter({
+                        "position": { "x": 50, "y": 45 },
+                        "rate": { "quantity": 2, "delay": 0.5 },
+                        "life": { "duration": 3, "count": 0 },
+                        "particles": { "color": { "value": "#00ffff" }, "move": { "direction": "none", "speed": { "min": 0.5, "max": 1.5 }, "random": true }, "opacity": { "value": { "min": 0.05, "max": 0.2 } }, "size": { "value": { "min": 0.5, "max": 1.5 } } }
+                    });
+
+                }, 1200);
+
+            };
+
+            enterButton.addEventListener('click', startCinematicSequence);
+        });
+    </script>
+
+</body>
+</html>
